@@ -1,0 +1,63 @@
+version: '3.3'
+services:
+  nginx:
+    image: nginx
+    profiles: ["webserver"]
+    ports:
+       - "80:80"
+    volumes:
+      - "./nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
+      - "./nginx/general.conf:/etc/nginx/general.conf:ro"
+      - "./nginx/proxy.conf:/etc/nginx/proxy.conf:ro"
+      - "./nginx/security.conf:/etc/nginx/security.conf:ro"
+      - "./nginx/papad.conf:/etc/nginx/sites-enabled/papad.conf:ro"
+      - "./nginx/docs.conf:/etc/nginx/sites-enabled/storage.conf:ro"
+      - "./nginx/minio.conf:/etc/nginx/sites-enabled/minio.conf:ro"
+      - "./nginx/upstreams.conf:/etc/nginx/sites-enabled/upstreams.conf:ro"
+    restart: always
+    links:
+      - "api:api"
+      - "docs:docs"
+      - "minio:minio"
+    depends_on:
+      - api
+      - ui
+      - docs
+      - minio
+    logging:
+       options:
+          max-size: 500m
+  api:
+    profiles: ["app"]
+    image: janastu/papad-api:2.4
+    restart: always
+    env_file: ./service_config.env
+    volumes:
+      - "./db/:/app/db/:rw"
+    ports:
+       - "8000:8000"
+    depends_on:
+      - minio
+  ui:
+    profiles: ["app"]
+    restart: always
+    image: janastu/papad-ui:2.4
+    ports:
+      - "3000:3000"
+  docs:
+    profiles: ["docs"]
+    restart: always
+    image: janastu/papad-docs:latest
+    ports:
+      - "8002:8000"
+  minio:
+    profiles: ["app"]
+    ports:
+        - '9001:9001'
+        - '9000:9000'
+    env_file:
+      - ./service_config.env
+    volumes:
+        - './minio/data:/data'
+    image: quay.io/minio/minio
+    command: server /data --console-address="0.0.0.0:9001"
